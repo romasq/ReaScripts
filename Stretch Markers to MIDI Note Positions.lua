@@ -136,79 +136,145 @@ for z=0, selMediaItemCount-1 do
 
    if #remainingNotesUniq < #remainingMarkers then loopCount=#remainingNotesUniq else loopCount=#remainingMarkers end  --- don't go over index
 
+   
+--   loopCount = 3
+   
+   NoteByNoteDiff = {}
+   NoteByNoteDiffProjTime = {}
+   NoteByNoteDiffProjTimeSourcePos = {}
+   for i=1, loopCount do
+   diff = remainingNotesUniq[i] - remainingMarkersPositions[i]
+   diffProjTime = remainingMarkersPositions[i] + diff
+   table.insert(NoteByNoteDiff, diff)
+   table.insert(NoteByNoteDiffProjTime, diffProjTime)
+   table.insert(NoteByNoteDiffProjTimeSourcePos, (diffProjTime-item_pos)*rate)
+   end
+   
+   lastMarkerToSnap = remainingMarkers[loopCount] 
+   lastMarkerOrigPosition = remainingMarkersPositions[loopCount]
+   lastMarkerPositionDiff = NoteByNoteDiffProjTime[#NoteByNoteDiffProjTime] - lastMarkerOrigPosition
+   
+   if loopCount == #remainingNotesUniq then  --------- if there are more markers than notes
+   surplusMarkersNewPositions = {}
+   for n=loopCount+1, #remainingMarkers do
+   table.insert(surplusMarkersNewPositions, remainingMarkersPositions[n] + lastMarkerPositionDiff)
+   end
+   else nomoreMarkers = "true"
+   end
+   
+
+   
    DiffsTable={}
+   DiffsTableNu={}
    srcPosers={}
    srcComposers={}
    srcComposersProjectTime={}
    srcPosersProjectTime={}
    whichIDActual={}
 
-   for q=1, loopCount do --------------------------------------------------------------The Main
-      notePos = remainingNotesUniq[q]
-      stretchPos = stretchMarkerPositionsNoEDCProjTime[q]
-      posDiff = notePos - stretchPos
-      srcDiff = posDiff*rate
-      table.insert(DiffsTable, posDiff)
+--reaper.Main_OnCommand(41844,0) ---- remove all stretch markers
+  dels = {}
+  for p=remainingMarkers[#remainingMarkers], remainingMarkers[1], -1  do
+  howManyDeleted = reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[p])
+  table.insert(dels, howManyDeleted)
+  end
+  
+  for q=remainingMarkers[1], loopCount do
+  whichInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, NoteByNoteDiffProjTimeSourcePos[q], stretchMarkerSourcePositionsNoEDC[q])
+  end
       
-
-      srcNotePos = (notePos - item_pos)*rate
-      srcStretchPos = (stretchPos - item_pos)*rate
-      stretchPosDiffLaterNotes = stretchPos + posDiff
-      srcStretchPosDiff = (stretchPosDiffLaterNotes - item_pos)*rate
-      notePosDiffLaterNotes = notePos + posDiff
-      srcNotePosDiff = ((notePos+notePosDiffLaterNotes) - item_pos)*rate
-      
-      
-      if posDiff > 0 then --------- if stretching forward
-
-	 for x=#stretchMarkerPositionsNoEDCProjTime, q+1, -1  do  ------ delete then reinsert all subsequent stretch markers with their new offsets, starting from last
-            reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[x])
-            stretchPosNu = stretchMarkerPositionsNoEDCProjTime[x]
-            srcStretchPosNu = (stretchPosNu - item_pos)*rate
-            stretchPosDiffLaterNotesNu = stretchPosNu + posDiff
-            srcStretchPosDiffNu = (stretchPosDiffLaterNotesNu - item_pos)*rate
-            whichStretchMarkerInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, stretchMarkerSourcePositionsNoEDC[x]+srcDiff, stretchMarkerSourcePositionsNoEDC[x])
-            whichStretchMarkerDeleteNewPosition = srcStretchPosNu+srcDiff
-            table.insert(whichIDActual, stretchMarkerID[x])
-            table.insert(srcComposers, srcStretchPosNu+srcDiff)
-            table.insert(srcComposersProjectTime, srcStretchPosNu+srcDiff)
-            penult = srcComposers[#srcComposers-1]
-            penultOrig = stretchMarkerPositionsNoEDCProjTime[x+1]
-	 end
-	 
-	 lastDeleted = reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[q])
-	 lastDeletedID = stretchMarkerID[q]
-	 whichStretchMarkerNote = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, srcNotePos,stretchMarkerSourcePositionsNoEDC[q])
-	 table.insert(srcPosers,srcNotePos)   
-	 table.insert(srcPosersProjectTime,srcNotePos+item_pos)   
-	 whichStretchMarkerNoteNewPosition = srcNotePos        
-	 
-      elseif posDiff < 0 then  --- if stretching backward
-	 
-	 lastDeleted = reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[q])
-	 lastDeletedID = stretchMarkerID[q]
-	 whichStretchMarkerNote = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, srcNotePos,stretchMarkerSourcePositionsNoEDC[q])
-	 table.insert(srcPosers,srcNotePos)   
-	 table.insert(srcPosersProjectTime,srcNotePos+item_pos)   
-	 whichStretchMarkerNoteNewPosition = srcNotePos
-	 
-	 for x=q+1, #stretchMarkerPositionsNoEDCProjTime  do ------ delete then reinsert all subsequent stretch markers with their new offsets, starting from first
-            reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[x])
-            stretchPosNu = stretchMarkerPositionsNoEDCProjTime[x]
-            srcStretchPosNu = (stretchPosNu - item_pos)*rate
-            stretchPosDiffLaterNotesNu = stretchPosNu + posDiff
-            srcStretchPosDiffNu = (stretchPosDiffLaterNotesNu - item_pos)*rate
-            whichStretchMarkerInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, stretchMarkerSourcePositionsNoEDC[x]+srcDiff, stretchMarkerSourcePositionsNoEDC[x])
-            whichStretchMarkerInsertNewPosition = srcStretchPosNu+srcDiff
-            table.insert(whichIDActual, stretchMarkerID[x])
-            table.insert(srcComposers, srcStretchPosNu+srcDiff)
-            table.insert(srcComposersProjectTime, srcStretchPosNu+srcDiff)
-            penult = srcComposers[x-1]
-            penultOrig = stretchMarkerPositionsNoEDCProjTime[#stretchMarkerPositionsNoEDCProjTime-1]
-	 end
-      else break
-      end
-   end
+if nomoreMarkers ~= "true" then
+  for q=loopCount+1, #remainingMarkers do
+  whichInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, ((stretchMarkerPositionsNoEDCProjTime[q] + lastMarkerPositionDiff)-item_pos)*rate, stretchMarkerSourcePositionsNoEDC[q])
+  end
+end
+  
+howmanyForeal = #dels
+   
+--    for q=1, 2 do --------------------------------------------------------------The Main
+--       notePos = remainingNotesUniq[q]
+--       stretchPos = stretchMarkerPositionsNoEDCProjTime[q]
+--       posDiff = notePos - stretchPos
+--       srcDiff = posDiff*rate
+--       table.insert(DiffsTable, posDiff)
+--          
+--       if q > 1 then 
+--       
+--       NustretchMarkerPositionsNoEDCProjTime = {}
+--    
+--    for r=1, #stretchMarkerPositionsNoEDCProjTime do
+--       table.insert(NustretchMarkerPositionsNoEDCProjTime, stretchMarkerPositionsNoEDCProjTime[r]+posDiff)
+--    end
+--    
+--       stretchPos = NustretchMarkerPositionsNoEDCProjTime[q]--------------project Pos
+--       posDiff = notePos - stretchPos
+-- --      posDiff = NustretchMarkerPositionsNoEDCProjTime[q] - stretchMarkerPositionsNoEDCProjTime[q]
+--       srcDiff = posDiff*rate
+--       table.insert(DiffsTableNu, posDiff)
+--       
+--       end
+--       
+-- 
+--       srcNotePos = (notePos - item_pos)*rate
+--       srcStretchPos = (stretchPos - item_pos)*rate
+--       stretchPosDiffLaterNotes = stretchPos + posDiff
+--       srcStretchPosDiff = (stretchPosDiffLaterNotes - item_pos)*rate
+--       notePosDiffLaterNotes = notePos + posDiff
+--       srcNotePosDiff = ((notePos+notePosDiffLaterNotes) - item_pos)*rate
+--       
+--       
+--       if posDiff > 0 then --------- if stretching forward
+-- 
+-- 	 for x=#stretchMarkerPositionsNoEDCProjTime, q+1, -1  do  ------ delete then reinsert all subsequent stretch markers with their new offsets, starting from last
+--             reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[x])
+--             stretchPosNu = stretchMarkerPositionsNoEDCProjTime[x]
+--             srcStretchPosNu = (stretchPosNu - item_pos)*rate
+--             stretchPosDiffLaterNotesNu = stretchPosNu + posDiff
+--             srcStretchPosDiffNu = (stretchPosDiffLaterNotesNu - item_pos)*rate
+--             whichStretchMarkerInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, stretchMarkerPositionsNoEDC[x]+srcDiff, stretchMarkerSourcePositionsNoEDC[x])
+--             whichStretchMarkerDeleteNewPosition = srcStretchPosNu+srcDiff
+--             table.insert(whichIDActual, stretchMarkerID[x])
+--             table.insert(srcComposers, srcStretchPosNu+srcDiff)
+--             table.insert(srcComposersProjectTime, srcStretchPosNu+srcDiff)
+--             penult = srcComposers[#srcComposers-1]
+--             penultOrig = stretchMarkerPositionsNoEDCProjTime[x+1]
+-- 	 end
+-- 	 
+-- 	 lastDeleted = reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[q])
+-- 	 lastDeletedID = stretchMarkerID[q]
+-- 	 whichStretchMarkerNote = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, srcNotePos,stretchMarkerSourcePositionsNoEDC[q])
+-- 	 table.insert(srcPosers,srcNotePos)   
+-- 	 table.insert(srcPosersProjectTime,srcNotePos+item_pos)   
+-- 	 whichStretchMarkerNoteNewPosition = srcNotePos        
+-- 	 
+--       elseif posDiff < 0 then  --- if stretching backward
+-- 	 
+--      lastDeleted = reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[q])
+-- 	 lastDeletedID = stretchMarkerID[q]
+--      whichStretchMarkerNote = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, srcNotePos,stretchMarkerSourcePositionsNoEDC[q])
+-- 	 table.insert(srcPosers,srcNotePos)   
+-- 	 table.insert(srcPosersProjectTime,srcNotePos+item_pos)   
+-- 	 whichStretchMarkerNoteNewPosition = srcNotePos
+-- 	 
+-- 	 for x=q+1, #stretchMarkerPositionsNoEDCProjTime  do ------ delete then reinsert all subsequent stretch markers with their new offsets, starting from first
+--             reaper.DeleteTakeStretchMarkers(SavedStretchMarkerItemTake, stretchMarkerID[x])
+--             stretchPosNu = stretchMarkerPositionsNoEDCProjTime[x]
+--             srcStretchPosNu = (stretchPosNu - item_pos)*rate
+--             stretchPosDiffLaterNotesNu = stretchPosNu + posDiff
+--             srcStretchPosDiffNu = (stretchPosDiffLaterNotesNu - item_pos)*rate
+--             whichStretchMarkerInsert = reaper.SetTakeStretchMarker(SavedStretchMarkerItemTake, -1, stretchMarkerPositionsNoEDC[x]+srcDiff, stretchMarkerSourcePositionsNoEDC[x])
+--             whichStretchMarkerInsertNewPosition = srcStretchPosNu+srcDiff
+--             table.insert(whichIDActual, stretchMarkerID[x])
+--             table.insert(srcComposers, srcStretchPosNu+srcDiff)
+--             table.insert(srcComposersProjectTime, srcStretchPosNu+srcDiff)
+--             penult = srcComposers[x-1]
+--             penultOrig = stretchMarkerPositionsNoEDCProjTime[#stretchMarkerPositionsNoEDCProjTime-1]
+-- 	 end
+-- 	 
+--       else
+--       bingbing = "yes"
+--       end
+--    end
 end 
 
 
